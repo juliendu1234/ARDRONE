@@ -55,8 +55,6 @@ class StatusWindowController: NSWindowController {
     private let rollValueLabel = NSTextField(labelWithString: "---°")
     private let yawTitleLabel = NSTextField(labelWithString: "↻ Yaw:")
     private let yawValueLabel = NSTextField(labelWithString: "---°")
-    private let sensTitleLabel = NSTextField(labelWithString: "🎚️ Sens:")
-    private let sensValueLabel = NSTextField(labelWithString: "50%")
     
     // Télémétrie - Colonne 4 (GPS & Moteurs)
     private let gpsTitleLabel = NSTextField(labelWithString: "🛰️ GPS:")
@@ -77,11 +75,6 @@ class StatusWindowController: NSWindowController {
     private let motor3ValueLabel = NSTextField(labelWithString: "---")
     private let motor4TitleLabel = NSTextField(labelWithString: "M4:")
     private let motor4ValueLabel = NSTextField(labelWithString: "---")
-    
-    // Sensitivity Controls (SDK-compliant AT*CONFIG)
-    private let sensitivitySlider = NSSlider()
-    private let sensitivityTitleLabel = NSTextField(labelWithString: "⚙️ SENSIBILITÉ (AT*CONFIG):")
-    private let sensitivityPercentLabel = NSTextField(labelWithString: "50%")
     
     // Indoor/Outdoor Mode Buttons
     private let indoorButton = NSButton(title: "🏠 Vol intérieur", target: nil, action: nil)
@@ -415,13 +408,13 @@ class StatusWindowController: NSWindowController {
         
         let allTitles = [battTitleLabel, voltTitleLabel, currentTitleLabel, tempTitleLabel,
                         altTitleLabel, vSpeedTitleLabel, speedTitleLabel, headingTitleLabel,
-                        pitchTitleLabel, rollTitleLabel, yawTitleLabel, sensTitleLabel,
+                        pitchTitleLabel, rollTitleLabel, yawTitleLabel,
                         gpsTitleLabel, satsTitleLabel, motor1TitleLabel, motor2TitleLabel,
                         stateTitleLabel, modeTitleLabel, motor3TitleLabel, motor4TitleLabel]
         
         let allValues = [battValueLabel, voltValueLabel, currentValueLabel, tempValueLabel,
                         altValueLabel, vSpeedValueLabel, speedValueLabel, headingValueLabel,
-                        pitchValueLabel, rollValueLabel, yawValueLabel, sensValueLabel,
+                        pitchValueLabel, rollValueLabel, yawValueLabel,
                         gpsValueLabel, satsValueLabel, motor1ValueLabel, motor2ValueLabel,
                         stateValueLabel, modeValueLabel, motor3ValueLabel, motor4ValueLabel]
         
@@ -466,7 +459,6 @@ class StatusWindowController: NSWindowController {
             (pitchTitleLabel, pitchValueLabel),
             (rollTitleLabel, rollValueLabel),
             (yawTitleLabel, yawValueLabel),
-            (sensTitleLabel, sensValueLabel),
             (motor1TitleLabel, motor1ValueLabel)
         ], in: container, x: 20 + colWidth * 2, y: startY, rowHeight: rowHeight)
         
@@ -478,11 +470,8 @@ class StatusWindowController: NSWindowController {
             (motor4TitleLabel, motor4ValueLabel)
         ], in: container, x: 20 + colWidth * 3, y: startY, rowHeight: rowHeight)
         
-        // Add sensitivity controls (SDK-compliant AT*CONFIG)
-        setupSensitivityControls(in: container, y: startY + rowHeight * 5.5)
-        
-        // Add indoor/outdoor mode buttons below sensitivity slider
-        setupFlightModeButtons(in: container, y: startY + rowHeight * 5.5 + 40)
+        // Add indoor/outdoor mode buttons
+        setupFlightModeButtons(in: container, y: startY + rowHeight * 5.5)
         
         return container
     }
@@ -501,48 +490,6 @@ class StatusWindowController: NSWindowController {
         }
     }
     
-    private func setupSensitivityControls(in container: NSView, y: CGFloat) {
-        // Title
-        sensitivityTitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        sensitivityTitleLabel.font = NSFont.systemFont(ofSize: 13, weight: .bold)
-        sensitivityTitleLabel.textColor = .systemYellow
-        sensitivityTitleLabel.isBordered = false
-        sensitivityTitleLabel.backgroundColor = .clear
-        
-        // Slider
-        sensitivitySlider.translatesAutoresizingMaskIntoConstraints = false
-        sensitivitySlider.minValue = Double(SensitivityConfig.minPercent)
-        sensitivitySlider.maxValue = Double(SensitivityConfig.maxPercent)
-        sensitivitySlider.doubleValue = Double(droneController.currentSensitivity)
-        sensitivitySlider.target = self
-        sensitivitySlider.action = #selector(sensitivitySliderChanged(_:))
-        sensitivitySlider.isContinuous = true
-        
-        // Percent label
-        sensitivityPercentLabel.translatesAutoresizingMaskIntoConstraints = false
-        sensitivityPercentLabel.font = NSFont.monospacedSystemFont(ofSize: 16, weight: .bold)
-        sensitivityPercentLabel.textColor = .systemCyan
-        sensitivityPercentLabel.isBordered = false
-        sensitivityPercentLabel.backgroundColor = .clear
-        sensitivityPercentLabel.alignment = .center
-        
-        container.addSubview(sensitivityTitleLabel)
-        container.addSubview(sensitivitySlider)
-        container.addSubview(sensitivityPercentLabel)
-        
-        NSLayoutConstraint.activate([
-            sensitivityTitleLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
-            sensitivityTitleLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: y),
-            
-            sensitivitySlider.leadingAnchor.constraint(equalTo: sensitivityTitleLabel.trailingAnchor, constant: 12),
-            sensitivitySlider.centerYAnchor.constraint(equalTo: sensitivityTitleLabel.centerYAnchor),
-            sensitivitySlider.widthAnchor.constraint(equalToConstant: 600),
-            
-            sensitivityPercentLabel.leadingAnchor.constraint(equalTo: sensitivitySlider.trailingAnchor, constant: 12),
-            sensitivityPercentLabel.centerYAnchor.constraint(equalTo: sensitivitySlider.centerYAnchor),
-            sensitivityPercentLabel.widthAnchor.constraint(equalToConstant: 60)
-        ])
-    }
     
     private func setupFlightModeButtons(in container: NSView, y: CGFloat) {
         // Configure indoor button
@@ -598,14 +545,6 @@ class StatusWindowController: NSWindowController {
     @objc private func outdoorButtonClicked(_ sender: NSButton) {
         droneController.setOutdoorMode(true)
         updateFlightModeButtons()
-    }
-    
-    @objc private func sensitivitySliderChanged(_ sender: NSSlider) {
-        let newSensitivity = Float(sender.doubleValue)
-        sensitivityPercentLabel.stringValue = "\(Int(newSensitivity))%"
-        
-        // Send AT*CONFIG commands to drone immediately
-        droneController.setSensitivity(newSensitivity)
     }
     
     @objc private func ssidFieldChanged(_ sender: NSTextField) {
@@ -930,10 +869,6 @@ class StatusWindowController: NSWindowController {
             controllerStatusLabel.stringValue = "🎮 Déconnectée"
             controllerStatusLabel.textColor = .systemRed
         }
-        
-        // Mise à jour de l'affichage de sensibilité
-        sensValueLabel.stringValue = "\(Int(droneController.currentSensitivity))%"
-        sensValueLabel.textColor = .systemCyan
     }
     
     private func updateWithNavData(_ navData: NavData) {

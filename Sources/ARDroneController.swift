@@ -50,9 +50,6 @@ class ARDroneController {
     private var yaw: Float = 0.0
     private var gaz: Float = 0.0
     
-    // Sensitivity management
-    var currentSensitivity: Float = SensitivityConfig.startPercent
-    
     // Outdoor mode management
     var isOutdoorMode: Bool = false
     
@@ -295,15 +292,12 @@ class ARDroneController {
         
         // Step 3: Control limits configuration
         sendCommand(atCommands.setMaxAltitude(10000))  // 10 meters max
-        sendCommand(atCommands.setOutdoorMode(false))  // Indoor mode
+        sendCommand(atCommands.setOutdoorMode(false))  // Indoor mode by default
         
-        // Step 4: Configure default sensitivity via AT*CONFIG (SDK-compliant)
-        configureSensitivityFromPercent(currentSensitivity)
+        // Step 4: GPS configuration (will be enabled when outdoor mode is activated)
+        // GPS is disabled by default for indoor mode
         
-        // Step 5: GPS configuration
-        sendCommand(atCommands.enableGPS(true))
-        
-        // Step 6: Send CTRL command to acknowledge configuration
+        // Step 5: Send CTRL command to acknowledge configuration
         sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
         
         isConfigured = true
@@ -808,51 +802,6 @@ class ARDroneController {
     
     /// Configure drone sensitivity via AT*CONFIG commands (SDK-compliant)
     /// - Parameter sensitivityPercent: Sensitivity from 10% to 100%
-    func configureSensitivityFromPercent(_ sensitivityPercent: Float) {
-        let clampedPercent = max(SensitivityConfig.minPercent, min(SensitivityConfig.maxPercent, sensitivityPercent))
-        currentSensitivity = clampedPercent
-        
-        // Convert percentage to actual drone parameters according to SDK
-        // euler_angle_max: Max tilt in millidegrees (0.01°)
-        // Base: 30° (30000 millidegrees) at 100%
-        let maxTilt = Int(30000.0 * (clampedPercent / 100.0))
-        
-        // control_vz_max: Max vertical speed in mm/s
-        // Base: 1000 mm/s (1 m/s) at 100%
-        let maxVerticalSpeed = Int(1000.0 * (clampedPercent / 100.0))
-        
-        // control_yaw: Max yaw speed in °/s
-        // Base: 200°/s at 100%
-        let maxYawSpeed = 200.0 * (clampedPercent / 100.0)
-        
-        // Send AT*CONFIG commands to drone
-        sendCommand(atCommands.setMaxTilt(maxTilt))
-        sendCommand(atCommands.setMaxVerticalSpeed(maxVerticalSpeed))
-        sendCommand(atCommands.setMaxYawSpeed(Float(maxYawSpeed)))
-        
-        print("✅ Sensitivity configured to \(Int(clampedPercent))% via AT*CONFIG")
-        print("   - Max tilt: \(maxTilt/1000)° (euler_angle_max)")
-        print("   - Max vertical: \(maxVerticalSpeed)mm/s (control_vz_max)")
-        print("   - Max yaw: \(String(format: "%.1f", maxYawSpeed))°/s (control_yaw)")
-    }
-    
-    func decreaseSensitivity() {
-        let newSensitivity = currentSensitivity - SensitivityConfig.stepPercent
-        configureSensitivityFromPercent(newSensitivity)
-        print("⬇️ Sensitivity: \(Int(currentSensitivity))%")
-    }
-    
-    func increaseSensitivity() {
-        let newSensitivity = currentSensitivity + SensitivityConfig.stepPercent
-        configureSensitivityFromPercent(newSensitivity)
-        print("⬆️ Sensitivity: \(Int(currentSensitivity))%")
-    }
-    
-    /// Set sensitivity directly to a specific percentage
-    /// - Parameter percent: Target sensitivity (10-100%)
-    func setSensitivity(_ percent: Float) {
-        configureSensitivityFromPercent(percent)
-    }
     
     // MARK: - Animation Commands
     
@@ -965,7 +914,12 @@ class ARDroneController {
     func setOutdoorMode(_ outdoor: Bool) {
         isOutdoorMode = outdoor
         sendCommand(atCommands.setOutdoorMode(outdoor))
+        
+        // Enable GPS for outdoor mode, disable for indoor mode
+        sendCommand(atCommands.enableGPS(outdoor))
+        
         print("🌍 Flight mode set to: \(outdoor ? "OUTDOOR" : "INDOOR")")
+        print("   GPS: \(outdoor ? "ENABLED" : "DISABLED")")
     }
     
     func setHullProtection(_ enabled: Bool) {
