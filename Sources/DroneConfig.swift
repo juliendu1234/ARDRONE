@@ -35,6 +35,45 @@ struct SensitivityConfig {
     static let deadzone: Float = 0.20
 }
 
+// MARK: - Flight Mode Configurations (like ARFreeFlight)
+
+struct FlightModeConfig {
+    var maxTilt: Int           // Max tilt angle in millidegrees (0.01°)
+    var maxAltitude: Int       // Max altitude in millimeters
+    var maxVerticalSpeed: Int  // Max vertical speed in mm/s
+    var maxYawSpeed: Float     // Max yaw speed in °/s
+    var gpsEnabled: Bool       // GPS enabled
+    var outdoor: Bool          // Outdoor mode
+    
+    // Indoor preset (ARFreeFlight defaults for indoor)
+    static let indoor = FlightModeConfig(
+        maxTilt: 20000,        // 20° max tilt (safer for indoor)
+        maxAltitude: 3000,     // 3 meters max altitude
+        maxVerticalSpeed: 700, // 700 mm/s (0.7 m/s)
+        maxYawSpeed: 100.0,    // 100°/s rotation
+        gpsEnabled: false,
+        outdoor: false
+    )
+    
+    // Outdoor preset (ARFreeFlight defaults for outdoor)
+    static let outdoor = FlightModeConfig(
+        maxTilt: 30000,        // 30° max tilt (more agile)
+        maxAltitude: 10000,    // 10 meters max altitude
+        maxVerticalSpeed: 1000, // 1000 mm/s (1 m/s)
+        maxYawSpeed: 200.0,    // 200°/s rotation
+        gpsEnabled: true,
+        outdoor: true
+    )
+    
+    // User-adjustable limits (for UI sliders)
+    static let limits = (
+        maxTilt: (min: 5000, max: 30000),           // 5° to 30°
+        maxAltitude: (min: 1000, max: 100000),      // 1m to 100m
+        maxVerticalSpeed: (min: 200, max: 2000),    // 0.2 to 2 m/s
+        maxYawSpeed: (min: 40.0, max: 350.0)        // 40 to 350 °/s
+    )
+}
+
 struct HoverConfig {
     static let autoHoverEnabled = true
     static let inputTimeout: TimeInterval = 0.5

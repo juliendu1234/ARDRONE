@@ -50,7 +50,8 @@ class ARDroneController {
     private var yaw: Float = 0.0
     private var gaz: Float = 0.0
     
-    // Outdoor mode management
+    // Flight mode configuration
+    var currentFlightConfig: FlightModeConfig = FlightModeConfig.indoor
     var isOutdoorMode: Bool = false
     
     // Hover management
@@ -290,14 +291,10 @@ class ARDroneController {
         sendCommand(atCommands.setVideoBitrate(2000000))
         sendCommand(atCommands.setFPS(30))
         
-        // Step 3: Control limits configuration
-        sendCommand(atCommands.setMaxAltitude(10000))  // 10 meters max
-        sendCommand(atCommands.setOutdoorMode(false))  // Indoor mode by default
+        // Step 3: Apply flight mode configuration (indoor by default)
+        applyFlightModeConfig(currentFlightConfig)
         
-        // Step 4: GPS configuration (will be enabled when outdoor mode is activated)
-        // GPS is disabled by default for indoor mode
-        
-        // Step 5: Send CTRL command to acknowledge configuration
+        // Step 4: Send CTRL command to acknowledge configuration
         sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
         
         isConfigured = true
@@ -913,13 +910,58 @@ class ARDroneController {
     
     func setOutdoorMode(_ outdoor: Bool) {
         isOutdoorMode = outdoor
-        sendCommand(atCommands.setOutdoorMode(outdoor))
         
-        // Enable GPS for outdoor mode, disable for indoor mode
-        sendCommand(atCommands.enableGPS(outdoor))
+        // Apply appropriate preset configuration
+        let config = outdoor ? FlightModeConfig.outdoor : FlightModeConfig.indoor
+        currentFlightConfig = config
+        
+        // Apply the full configuration
+        applyFlightModeConfig(config)
         
         print("🌍 Flight mode set to: \(outdoor ? "OUTDOOR" : "INDOOR")")
-        print("   GPS: \(outdoor ? "ENABLED" : "DISABLED")")
+        print("   Configuration applied:")
+        print("   - Max tilt: \(config.maxTilt/1000)°")
+        print("   - Max altitude: \(config.maxAltitude/1000)m")
+        print("   - Max vertical speed: \(config.maxVerticalSpeed)mm/s")
+        print("   - Max yaw speed: \(config.maxYawSpeed)°/s")
+        print("   - GPS: \(config.gpsEnabled ? "ENABLED" : "DISABLED")")
+    }
+    
+    /// Apply a complete flight mode configuration to the drone
+    func applyFlightModeConfig(_ config: FlightModeConfig) {
+        // Send all configuration commands
+        sendCommand(atCommands.setOutdoorMode(config.outdoor))
+        sendCommand(atCommands.setMaxTilt(config.maxTilt))
+        sendCommand(atCommands.setMaxAltitude(config.maxAltitude))
+        sendCommand(atCommands.setMaxVerticalSpeed(config.maxVerticalSpeed))
+        sendCommand(atCommands.setMaxYawSpeed(config.maxYawSpeed))
+        sendCommand(atCommands.enableGPS(config.gpsEnabled))
+        
+        // Send CTRL to acknowledge
+        sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
+        
+        currentFlightConfig = config
+    }
+    
+    /// Update individual parameter (for UI sliders)
+    func updateFlightParameter(maxTilt: Int? = nil, maxAltitude: Int? = nil,
+                               maxVerticalSpeed: Int? = nil, maxYawSpeed: Float? = nil) {
+        if let tilt = maxTilt {
+            currentFlightConfig.maxTilt = tilt
+            sendCommand(atCommands.setMaxTilt(tilt))
+        }
+        if let altitude = maxAltitude {
+            currentFlightConfig.maxAltitude = altitude
+            sendCommand(atCommands.setMaxAltitude(altitude))
+        }
+        if let vSpeed = maxVerticalSpeed {
+            currentFlightConfig.maxVerticalSpeed = vSpeed
+            sendCommand(atCommands.setMaxVerticalSpeed(vSpeed))
+        }
+        if let ySpeed = maxYawSpeed {
+            currentFlightConfig.maxYawSpeed = ySpeed
+            sendCommand(atCommands.setMaxYawSpeed(ySpeed))
+        }
     }
     
     func setHullProtection(_ enabled: Bool) {

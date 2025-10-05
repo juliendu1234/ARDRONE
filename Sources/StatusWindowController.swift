@@ -80,6 +80,16 @@ class StatusWindowController: NSWindowController {
     private let indoorButton = NSButton(title: "🏠 Vol intérieur", target: nil, action: nil)
     private let outdoorButton = NSButton(title: "🌍 Vol extérieur", target: nil, action: nil)
     
+    // Flight Parameters Sliders (like ARFreeFlight)
+    private let maxTiltSlider = NSSlider()
+    private let maxTiltLabel = NSTextField(labelWithString: "Angle max: 20°")
+    private let maxAltitudeSlider = NSSlider()
+    private let maxAltitudeLabel = NSTextField(labelWithString: "Altitude max: 3m")
+    private let maxVerticalSpeedSlider = NSSlider()
+    private let maxVerticalSpeedLabel = NSTextField(labelWithString: "Vitesse verticale: 0.7m/s")
+    private let maxYawSpeedSlider = NSSlider()
+    private let maxYawSpeedLabel = NSTextField(labelWithString: "Vitesse rotation: 100°/s")
+    
     private let wifiClient = CWWiFiClient.shared()
     private var lastObservedSSID: String?
     private var flightStartTime: Date?
@@ -473,6 +483,9 @@ class StatusWindowController: NSWindowController {
         // Add indoor/outdoor mode buttons
         setupFlightModeButtons(in: container, y: startY + rowHeight * 5.5)
         
+        // Add flight parameter sliders below buttons
+        setupFlightParameterSliders(in: container, y: startY + rowHeight * 5.5 + 50)
+        
         return container
     }
     
@@ -540,11 +553,147 @@ class StatusWindowController: NSWindowController {
     @objc private func indoorButtonClicked(_ sender: NSButton) {
         droneController.setOutdoorMode(false)
         updateFlightModeButtons()
+        updateParameterSlidersFromConfig()
     }
     
     @objc private func outdoorButtonClicked(_ sender: NSButton) {
         droneController.setOutdoorMode(true)
         updateFlightModeButtons()
+        updateParameterSlidersFromConfig()
+    }
+    
+    private func setupFlightParameterSliders(in container: NSView, y: CGFloat) {
+        let sliderWidth: CGFloat = 500
+        let labelWidth: CGFloat = 200
+        let rowSpacing: CGFloat = 35
+        
+        // Setup Max Tilt Slider
+        setupSlider(maxTiltSlider, 
+                   label: maxTiltLabel,
+                   min: Double(FlightModeConfig.limits.maxTilt.min),
+                   max: Double(FlightModeConfig.limits.maxTilt.max),
+                   value: Double(droneController.currentFlightConfig.maxTilt),
+                   action: #selector(maxTiltChanged(_:)),
+                   in: container,
+                   x: 16,
+                   y: y,
+                   sliderWidth: sliderWidth,
+                   labelWidth: labelWidth)
+        
+        // Setup Max Altitude Slider
+        setupSlider(maxAltitudeSlider,
+                   label: maxAltitudeLabel,
+                   min: Double(FlightModeConfig.limits.maxAltitude.min),
+                   max: Double(FlightModeConfig.limits.maxAltitude.max),
+                   value: Double(droneController.currentFlightConfig.maxAltitude),
+                   action: #selector(maxAltitudeChanged(_:)),
+                   in: container,
+                   x: 16,
+                   y: y + rowSpacing,
+                   sliderWidth: sliderWidth,
+                   labelWidth: labelWidth)
+        
+        // Setup Max Vertical Speed Slider
+        setupSlider(maxVerticalSpeedSlider,
+                   label: maxVerticalSpeedLabel,
+                   min: Double(FlightModeConfig.limits.maxVerticalSpeed.min),
+                   max: Double(FlightModeConfig.limits.maxVerticalSpeed.max),
+                   value: Double(droneController.currentFlightConfig.maxVerticalSpeed),
+                   action: #selector(maxVerticalSpeedChanged(_:)),
+                   in: container,
+                   x: 16,
+                   y: y + rowSpacing * 2,
+                   sliderWidth: sliderWidth,
+                   labelWidth: labelWidth)
+        
+        // Setup Max Yaw Speed Slider
+        setupSlider(maxYawSpeedSlider,
+                   label: maxYawSpeedLabel,
+                   min: Double(FlightModeConfig.limits.maxYawSpeed.min),
+                   max: Double(FlightModeConfig.limits.maxYawSpeed.max),
+                   value: Double(droneController.currentFlightConfig.maxYawSpeed),
+                   action: #selector(maxYawSpeedChanged(_:)),
+                   in: container,
+                   x: 16,
+                   y: y + rowSpacing * 3,
+                   sliderWidth: sliderWidth,
+                   labelWidth: labelWidth)
+    }
+    
+    private func setupSlider(_ slider: NSSlider, label: NSTextField,
+                            min: Double, max: Double, value: Double,
+                            action: Selector,
+                            in container: NSView,
+                            x: CGFloat, y: CGFloat,
+                            sliderWidth: CGFloat, labelWidth: CGFloat) {
+        slider.translatesAutoresizingMaskIntoConstraints = false
+        slider.minValue = min
+        slider.maxValue = max
+        slider.doubleValue = value
+        slider.target = self
+        slider.action = action
+        slider.isContinuous = true
+        
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        label.textColor = .systemCyan
+        label.isBordered = false
+        label.backgroundColor = .clear
+        label.alignment = .left
+        
+        container.addSubview(slider)
+        container.addSubview(label)
+        
+        NSLayoutConstraint.activate([
+            slider.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: x),
+            slider.topAnchor.constraint(equalTo: container.topAnchor, constant: y),
+            slider.widthAnchor.constraint(equalToConstant: sliderWidth),
+            
+            label.leadingAnchor.constraint(equalTo: slider.trailingAnchor, constant: 12),
+            label.centerYAnchor.constraint(equalTo: slider.centerYAnchor),
+            label.widthAnchor.constraint(equalToConstant: labelWidth)
+        ])
+    }
+    
+    private func updateParameterSlidersFromConfig() {
+        let config = droneController.currentFlightConfig
+        maxTiltSlider.doubleValue = Double(config.maxTilt)
+        maxAltitudeSlider.doubleValue = Double(config.maxAltitude)
+        maxVerticalSpeedSlider.doubleValue = Double(config.maxVerticalSpeed)
+        maxYawSpeedSlider.doubleValue = Double(config.maxYawSpeed)
+        
+        updateParameterLabels()
+    }
+    
+    private func updateParameterLabels() {
+        maxTiltLabel.stringValue = "Angle max: \(droneController.currentFlightConfig.maxTilt/1000)°"
+        maxAltitudeLabel.stringValue = "Altitude max: \(droneController.currentFlightConfig.maxAltitude/1000)m"
+        maxVerticalSpeedLabel.stringValue = "Vitesse verticale: \(Float(droneController.currentFlightConfig.maxVerticalSpeed)/1000.0)m/s"
+        maxYawSpeedLabel.stringValue = "Vitesse rotation: \(Int(droneController.currentFlightConfig.maxYawSpeed))°/s"
+    }
+    
+    @objc private func maxTiltChanged(_ sender: NSSlider) {
+        let value = Int(sender.doubleValue)
+        droneController.updateFlightParameter(maxTilt: value)
+        updateParameterLabels()
+    }
+    
+    @objc private func maxAltitudeChanged(_ sender: NSSlider) {
+        let value = Int(sender.doubleValue)
+        droneController.updateFlightParameter(maxAltitude: value)
+        updateParameterLabels()
+    }
+    
+    @objc private func maxVerticalSpeedChanged(_ sender: NSSlider) {
+        let value = Int(sender.doubleValue)
+        droneController.updateFlightParameter(maxVerticalSpeed: value)
+        updateParameterLabels()
+    }
+    
+    @objc private func maxYawSpeedChanged(_ sender: NSSlider) {
+        let value = Float(sender.doubleValue)
+        droneController.updateFlightParameter(maxYawSpeed: value)
+        updateParameterLabels()
     }
     
     @objc private func ssidFieldChanged(_ sender: NSTextField) {
