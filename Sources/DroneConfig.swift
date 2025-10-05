@@ -42,7 +42,6 @@ struct FlightModeConfig {
     var maxAltitude: Int       // Max altitude in millimeters
     var maxVerticalSpeed: Int  // Max vertical speed in mm/s
     var maxYawSpeed: Float     // Max yaw speed in °/s
-    var gpsEnabled: Bool       // GPS enabled
     var outdoor: Bool          // Outdoor mode
     
     // Indoor preset (ARFreeFlight defaults for indoor)
@@ -51,7 +50,6 @@ struct FlightModeConfig {
         maxAltitude: 3000,     // 3 meters max altitude
         maxVerticalSpeed: 700, // 700 mm/s (0.7 m/s)
         maxYawSpeed: 100.0,    // 100°/s rotation
-        gpsEnabled: false,
         outdoor: false
     )
     
@@ -61,7 +59,6 @@ struct FlightModeConfig {
         maxAltitude: 10000,    // 10 meters max altitude
         maxVerticalSpeed: 1000, // 1000 mm/s (1 m/s)
         maxYawSpeed: 200.0,    // 200°/s rotation
-        gpsEnabled: true,
         outdoor: true
     )
     
@@ -79,14 +76,6 @@ struct HoverConfig {
     static let inputTimeout: TimeInterval = 0.5
     static let hoverForceDelay: TimeInterval = 1.0
     static let disableAutoStabilization = true
-}
-
-struct GPSConfig {
-    static let baudRate = 9600
-    static let timeout: TimeInterval = 1.0
-    static let homePrecision: Float = 5.0
-    static let updateRate: TimeInterval = 1.0
-    static let minSatellites = 4
 }
 
 struct DroneConfig {
@@ -115,7 +104,6 @@ enum DroneState {
 enum DroneFlightMode {
     case manual
     case hover
-    case gps
     case returnToHome
 }
 
@@ -125,10 +113,7 @@ struct DroneStatus {
     var sensitivity: Float = SensitivityConfig.startPercent
     var batteryLevel: Float = 0
     var altitude: Float = 0
-    var gpsEnabled: Bool = false
-    var gpsLocation: (latitude: Double, longitude: Double)?
     var homeLocation: (latitude: Double, longitude: Double)?
-    var satelliteCount: Int = 0
     var isEmergency: Bool = false
 }
 

@@ -938,7 +938,6 @@ class ARDroneController {
         print("   - Max altitude: \(config.maxAltitude/1000)m")
         print("   - Max vertical speed: \(config.maxVerticalSpeed)mm/s")
         print("   - Max yaw speed: \(config.maxYawSpeed)°/s")
-        print("   - GPS enabled: \(config.gpsEnabled)")
         
         // According to SDK, we must send CONFIG_IDS before any AT*CONFIG
         sendCommand(atCommands.configIds(sessionId: sessionId, userId: userId, applicationId: applicationId))
@@ -977,18 +976,11 @@ class ARDroneController {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
                                 guard let self = self else { return }
                                 
-                                self.sendCommand(self.atCommands.enableGPS(config.gpsEnabled))
-                                self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
+                                // Final CTRL to commit all changes
+                                self.sendCommand(self.atCommands.ctrl(mode: 5, miscValue: 0))
                                 
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                                    guard let self = self else { return }
-                                    
-                                    // Final CTRL to commit all changes
-                                    self.sendCommand(self.atCommands.ctrl(mode: 5, miscValue: 0))
-                                    
-                                    self.currentFlightConfig = config
-                                    print("✅ Configuration applied to drone")
-                                }
+                                self.currentFlightConfig = config
+                                print("✅ Configuration applied to drone")
                             }
                         }
                     }

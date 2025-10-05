@@ -56,11 +56,7 @@ class StatusWindowController: NSWindowController {
     private let yawTitleLabel = NSTextField(labelWithString: "↻ Yaw:")
     private let yawValueLabel = NSTextField(labelWithString: "---°")
     
-    // Télémétrie - Colonne 4 (GPS & Moteurs)
-    private let gpsTitleLabel = NSTextField(labelWithString: "🛰️ GPS:")
-    private let gpsValueLabel = NSTextField(labelWithString: "INACTIF")
-    private let satsTitleLabel = NSTextField(labelWithString: "📡 Satellites:")
-    private let satsValueLabel = NSTextField(labelWithString: "0")
+    // Télémétrie - Colonne 4 (Moteurs)
     private let motor1TitleLabel = NSTextField(labelWithString: "M1:")
     private let motor1ValueLabel = NSTextField(labelWithString: "---")
     private let motor2TitleLabel = NSTextField(labelWithString: "M2:")
@@ -419,13 +415,13 @@ class StatusWindowController: NSWindowController {
         let allTitles = [battTitleLabel, voltTitleLabel, currentTitleLabel, tempTitleLabel,
                         altTitleLabel, vSpeedTitleLabel, speedTitleLabel, headingTitleLabel,
                         pitchTitleLabel, rollTitleLabel, yawTitleLabel,
-                        gpsTitleLabel, satsTitleLabel, motor1TitleLabel, motor2TitleLabel,
+                        motor1TitleLabel, motor2TitleLabel,
                         stateTitleLabel, modeTitleLabel, motor3TitleLabel, motor4TitleLabel]
         
         let allValues = [battValueLabel, voltValueLabel, currentValueLabel, tempValueLabel,
                         altValueLabel, vSpeedValueLabel, speedValueLabel, headingValueLabel,
                         pitchValueLabel, rollValueLabel, yawValueLabel,
-                        gpsValueLabel, satsValueLabel, motor1ValueLabel, motor2ValueLabel,
+                        motor1ValueLabel, motor2ValueLabel,
                         stateValueLabel, modeValueLabel, motor3ValueLabel, motor4ValueLabel]
         
         for label in allTitles + allValues {
@@ -453,29 +449,27 @@ class StatusWindowController: NSWindowController {
             (battTitleLabel, battValueLabel),
             (voltTitleLabel, voltValueLabel),
             (currentTitleLabel, currentValueLabel),
-            (tempTitleLabel, tempValueLabel),
-            (gpsTitleLabel, gpsValueLabel)
-        ], in: container, x: 20, y: startY, rowHeight: rowHeight)  // Increased left margin
+            (tempTitleLabel, tempValueLabel)
+        ], in: container, x: 20, y: startY, rowHeight: rowHeight)
         
         layoutColumn(labels: [
             (altTitleLabel, altValueLabel),
             (vSpeedTitleLabel, vSpeedValueLabel),
             (speedTitleLabel, speedValueLabel),
-            (headingTitleLabel, headingValueLabel),
-            (satsTitleLabel, satsValueLabel)
+            (headingTitleLabel, headingValueLabel)
         ], in: container, x: 20 + colWidth, y: startY, rowHeight: rowHeight)
         
         layoutColumn(labels: [
             (pitchTitleLabel, pitchValueLabel),
             (rollTitleLabel, rollValueLabel),
             (yawTitleLabel, yawValueLabel),
-            (motor1TitleLabel, motor1ValueLabel)
+            (motor1TitleLabel, motor1ValueLabel),
+            (motor2TitleLabel, motor2ValueLabel)
         ], in: container, x: 20 + colWidth * 2, y: startY, rowHeight: rowHeight)
         
         layoutColumn(labels: [
             (stateTitleLabel, stateValueLabel),
             (modeTitleLabel, modeValueLabel),
-            (motor2TitleLabel, motor2ValueLabel),
             (motor3TitleLabel, motor3ValueLabel),
             (motor4TitleLabel, motor4ValueLabel)
         ], in: container, x: 20 + colWidth * 3, y: startY, rowHeight: rowHeight)
@@ -1080,15 +1074,6 @@ class StatusWindowController: NSWindowController {
             
             // Yaw
             self.yawValueLabel.stringValue = String(format: "%.1f°", navData.yaw)
-            
-            // GPS
-            self.gpsValueLabel.stringValue = navData.gpsNumSatellites >= 4 ? "ACTIF" : "INACTIF"
-            self.gpsValueLabel.textColor = navData.gpsNumSatellites >= 4 ? .systemGreen : .systemRed
-            
-            // Satellites
-            self.satsValueLabel.stringValue = "\(navData.gpsNumSatellites)"
-            self.satsValueLabel.textColor = navData.gpsNumSatellites >= 6 ? .systemGreen :
-                (navData.gpsNumSatellites >= 4 ? .systemYellow : .systemRed)
             
             // Moteurs (avec code couleur selon RPM)
             let motorColor: (UInt8) -> NSColor = { rpm in
