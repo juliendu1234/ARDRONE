@@ -83,6 +83,10 @@ class StatusWindowController: NSWindowController {
     private let sensitivityTitleLabel = NSTextField(labelWithString: "⚙️ SENSIBILITÉ (AT*CONFIG):")
     private let sensitivityPercentLabel = NSTextField(labelWithString: "50%")
     
+    // Indoor/Outdoor Mode Buttons
+    private let indoorButton = NSButton(title: "🏠 Vol intérieur", target: nil, action: nil)
+    private let outdoorButton = NSButton(title: "🌍 Vol extérieur", target: nil, action: nil)
+    
     private let wifiClient = CWWiFiClient.shared()
     private var lastObservedSSID: String?
     private var flightStartTime: Date?
@@ -477,6 +481,9 @@ class StatusWindowController: NSWindowController {
         // Add sensitivity controls (SDK-compliant AT*CONFIG)
         setupSensitivityControls(in: container, y: startY + rowHeight * 5.5)
         
+        // Add indoor/outdoor mode buttons below sensitivity slider
+        setupFlightModeButtons(in: container, y: startY + rowHeight * 5.5 + 40)
+        
         return container
     }
     
@@ -535,6 +542,62 @@ class StatusWindowController: NSWindowController {
             sensitivityPercentLabel.centerYAnchor.constraint(equalTo: sensitivitySlider.centerYAnchor),
             sensitivityPercentLabel.widthAnchor.constraint(equalToConstant: 60)
         ])
+    }
+    
+    private func setupFlightModeButtons(in container: NSView, y: CGFloat) {
+        // Configure indoor button
+        indoorButton.translatesAutoresizingMaskIntoConstraints = false
+        indoorButton.bezelStyle = .rounded
+        indoorButton.target = self
+        indoorButton.action = #selector(indoorButtonClicked(_:))
+        indoorButton.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        
+        // Configure outdoor button
+        outdoorButton.translatesAutoresizingMaskIntoConstraints = false
+        outdoorButton.bezelStyle = .rounded
+        outdoorButton.target = self
+        outdoorButton.action = #selector(outdoorButtonClicked(_:))
+        outdoorButton.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        
+        container.addSubview(indoorButton)
+        container.addSubview(outdoorButton)
+        
+        // Update button states based on current mode
+        updateFlightModeButtons()
+        
+        NSLayoutConstraint.activate([
+            indoorButton.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
+            indoorButton.topAnchor.constraint(equalTo: container.topAnchor, constant: y),
+            indoorButton.widthAnchor.constraint(equalToConstant: 180),
+            indoorButton.heightAnchor.constraint(equalToConstant: 32),
+            
+            outdoorButton.leadingAnchor.constraint(equalTo: indoorButton.trailingAnchor, constant: 12),
+            outdoorButton.centerYAnchor.constraint(equalTo: indoorButton.centerYAnchor),
+            outdoorButton.widthAnchor.constraint(equalToConstant: 180),
+            outdoorButton.heightAnchor.constraint(equalToConstant: 32)
+        ])
+    }
+    
+    private func updateFlightModeButtons() {
+        if droneController.isOutdoorMode {
+            // Outdoor mode active
+            indoorButton.contentTintColor = .systemGray
+            outdoorButton.contentTintColor = .systemGreen
+        } else {
+            // Indoor mode active
+            indoorButton.contentTintColor = .systemGreen
+            outdoorButton.contentTintColor = .systemGray
+        }
+    }
+    
+    @objc private func indoorButtonClicked(_ sender: NSButton) {
+        droneController.setOutdoorMode(false)
+        updateFlightModeButtons()
+    }
+    
+    @objc private func outdoorButtonClicked(_ sender: NSButton) {
+        droneController.setOutdoorMode(true)
+        updateFlightModeButtons()
     }
     
     @objc private func sensitivitySliderChanged(_ sender: NSSlider) {

@@ -53,6 +53,9 @@ class ARDroneController {
     // Sensitivity management
     var currentSensitivity: Float = SensitivityConfig.startPercent
     
+    // Outdoor mode management
+    var isOutdoorMode: Bool = false
+    
     // Hover management
     private var isAutoHoverActive = false
     private var lastInputTime: Date?
@@ -960,7 +963,9 @@ class ARDroneController {
     }
     
     func setOutdoorMode(_ outdoor: Bool) {
+        isOutdoorMode = outdoor
         sendCommand(atCommands.setOutdoorMode(outdoor))
+        print("🌍 Flight mode set to: \(outdoor ? "OUTDOOR" : "INDOOR")")
     }
     
     func setHullProtection(_ enabled: Bool) {
