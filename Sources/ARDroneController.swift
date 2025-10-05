@@ -221,10 +221,13 @@ class ARDroneController {
         
         if isConnectedToDrone() {
             sendCommand(atCommands.ref(ATCommands.ControlFlags.land))
-            Thread.sleep(forTimeInterval: 0.5)
+            // Use async delay instead of blocking
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.cleanupConnections()
+            }
+        } else {
+            cleanupConnections()
         }
-        
-        cleanupConnections()
         
         isNetworkReady = false
         isReceivingNavData = false
@@ -940,41 +943,58 @@ class ARDroneController {
         // According to SDK, we must send CONFIG_IDS before any AT*CONFIG
         sendCommand(atCommands.configIds(sessionId: sessionId, userId: userId, applicationId: applicationId))
         
-        // Small delay to ensure CONFIG_IDS is processed
-        Thread.sleep(forTimeInterval: 0.05)
-        
-        // Send each configuration with ACK (CTRL) after each one
-        // This is CRITICAL - SDK requires ACK between each AT*CONFIG
-        
-        sendCommand(atCommands.setOutdoorMode(config.outdoor))
-        sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
-        Thread.sleep(forTimeInterval: 0.05)
-        
-        sendCommand(atCommands.setMaxTilt(config.maxTilt))
-        sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
-        Thread.sleep(forTimeInterval: 0.05)
-        
-        sendCommand(atCommands.setMaxAltitude(config.maxAltitude))
-        sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
-        Thread.sleep(forTimeInterval: 0.05)
-        
-        sendCommand(atCommands.setMaxVerticalSpeed(config.maxVerticalSpeed))
-        sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
-        Thread.sleep(forTimeInterval: 0.05)
-        
-        sendCommand(atCommands.setMaxYawSpeed(config.maxYawSpeed))
-        sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
-        Thread.sleep(forTimeInterval: 0.05)
-        
-        sendCommand(atCommands.enableGPS(config.gpsEnabled))
-        sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
-        Thread.sleep(forTimeInterval: 0.05)
-        
-        // Final CTRL to commit all changes
-        sendCommand(atCommands.ctrl(mode: 5, miscValue: 0))
-        
-        currentFlightConfig = config
-        print("✅ Configuration applied to drone")
+        // Use async delays to avoid blocking main thread (critical for network operations)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let self = self else { return }
+            
+            self.sendCommand(self.atCommands.setOutdoorMode(config.outdoor))
+            self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                guard let self = self else { return }
+                
+                self.sendCommand(self.atCommands.setMaxTilt(config.maxTilt))
+                self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    guard let self = self else { return }
+                    
+                    self.sendCommand(self.atCommands.setMaxAltitude(config.maxAltitude))
+                    self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                        guard let self = self else { return }
+                        
+                        self.sendCommand(self.atCommands.setMaxVerticalSpeed(config.maxVerticalSpeed))
+                        self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                            guard let self = self else { return }
+                            
+                            self.sendCommand(self.atCommands.setMaxYawSpeed(config.maxYawSpeed))
+                            self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                                guard let self = self else { return }
+                                
+                                self.sendCommand(self.atCommands.enableGPS(config.gpsEnabled))
+                                self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
+                                
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                                    guard let self = self else { return }
+                                    
+                                    // Final CTRL to commit all changes
+                                    self.sendCommand(self.atCommands.ctrl(mode: 5, miscValue: 0))
+                                    
+                                    self.currentFlightConfig = config
+                                    print("✅ Configuration applied to drone")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     
     /// Update individual parameter (for UI sliders)
@@ -982,39 +1002,58 @@ class ARDroneController {
                                maxVerticalSpeed: Int? = nil, maxYawSpeed: Float? = nil) {
         // Send CONFIG_IDS before any AT*CONFIG
         sendCommand(atCommands.configIds(sessionId: sessionId, userId: userId, applicationId: applicationId))
-        Thread.sleep(forTimeInterval: 0.05)
+        
+        var delay: Double = 0.05
         
         if let tilt = maxTilt {
-            currentFlightConfig.maxTilt = tilt
-            sendCommand(atCommands.setMaxTilt(tilt))
-            sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
-            Thread.sleep(forTimeInterval: 0.05)
-            print("📝 Max tilt updated: \(tilt/1000)°")
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self = self else { return }
+                self.currentFlightConfig.maxTilt = tilt
+                self.sendCommand(self.atCommands.setMaxTilt(tilt))
+                self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
+                print("📝 Max tilt updated: \(tilt/1000)°")
+            }
+            delay += 0.05
         }
+        
         if let altitude = maxAltitude {
-            currentFlightConfig.maxAltitude = altitude
-            sendCommand(atCommands.setMaxAltitude(altitude))
-            sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
-            Thread.sleep(forTimeInterval: 0.05)
-            print("📝 Max altitude updated: \(altitude/1000)m")
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self = self else { return }
+                self.currentFlightConfig.maxAltitude = altitude
+                self.sendCommand(self.atCommands.setMaxAltitude(altitude))
+                self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
+                print("📝 Max altitude updated: \(altitude/1000)m")
+            }
+            delay += 0.05
         }
+        
         if let vSpeed = maxVerticalSpeed {
-            currentFlightConfig.maxVerticalSpeed = vSpeed
-            sendCommand(atCommands.setMaxVerticalSpeed(vSpeed))
-            sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
-            Thread.sleep(forTimeInterval: 0.05)
-            print("📝 Max vertical speed updated: \(vSpeed)mm/s")
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self = self else { return }
+                self.currentFlightConfig.maxVerticalSpeed = vSpeed
+                self.sendCommand(self.atCommands.setMaxVerticalSpeed(vSpeed))
+                self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
+                print("📝 Max vertical speed updated: \(vSpeed)mm/s")
+            }
+            delay += 0.05
         }
+        
         if let ySpeed = maxYawSpeed {
-            currentFlightConfig.maxYawSpeed = ySpeed
-            sendCommand(atCommands.setMaxYawSpeed(ySpeed))
-            sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
-            Thread.sleep(forTimeInterval: 0.05)
-            print("📝 Max yaw speed updated: \(ySpeed)°/s")
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self = self else { return }
+                self.currentFlightConfig.maxYawSpeed = ySpeed
+                self.sendCommand(self.atCommands.setMaxYawSpeed(ySpeed))
+                self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
+                print("📝 Max yaw speed updated: \(ySpeed)°/s")
+            }
+            delay += 0.05
         }
         
         // Final CTRL to commit
-        sendCommand(atCommands.ctrl(mode: 5, miscValue: 0))
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self = self else { return }
+            self.sendCommand(self.atCommands.ctrl(mode: 5, miscValue: 0))
+        }
     }
     
     func setHullProtection(_ enabled: Bool) {
