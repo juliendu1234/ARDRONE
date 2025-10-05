@@ -929,39 +929,92 @@ class ARDroneController {
     
     /// Apply a complete flight mode configuration to the drone
     func applyFlightModeConfig(_ config: FlightModeConfig) {
-        // Send all configuration commands
-        sendCommand(atCommands.setOutdoorMode(config.outdoor))
-        sendCommand(atCommands.setMaxTilt(config.maxTilt))
-        sendCommand(atCommands.setMaxAltitude(config.maxAltitude))
-        sendCommand(atCommands.setMaxVerticalSpeed(config.maxVerticalSpeed))
-        sendCommand(atCommands.setMaxYawSpeed(config.maxYawSpeed))
-        sendCommand(atCommands.enableGPS(config.gpsEnabled))
+        print("📝 Applying flight mode configuration...")
+        print("   - Outdoor: \(config.outdoor)")
+        print("   - Max tilt: \(config.maxTilt/1000)°")
+        print("   - Max altitude: \(config.maxAltitude/1000)m")
+        print("   - Max vertical speed: \(config.maxVerticalSpeed)mm/s")
+        print("   - Max yaw speed: \(config.maxYawSpeed)°/s")
+        print("   - GPS enabled: \(config.gpsEnabled)")
         
-        // Send CTRL to acknowledge
+        // According to SDK, we must send CONFIG_IDS before any AT*CONFIG
+        sendCommand(atCommands.configIds(sessionId: sessionId, userId: userId, applicationId: applicationId))
+        
+        // Small delay to ensure CONFIG_IDS is processed
+        Thread.sleep(forTimeInterval: 0.05)
+        
+        // Send each configuration with ACK (CTRL) after each one
+        // This is CRITICAL - SDK requires ACK between each AT*CONFIG
+        
+        sendCommand(atCommands.setOutdoorMode(config.outdoor))
         sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
+        Thread.sleep(forTimeInterval: 0.05)
+        
+        sendCommand(atCommands.setMaxTilt(config.maxTilt))
+        sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
+        Thread.sleep(forTimeInterval: 0.05)
+        
+        sendCommand(atCommands.setMaxAltitude(config.maxAltitude))
+        sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
+        Thread.sleep(forTimeInterval: 0.05)
+        
+        sendCommand(atCommands.setMaxVerticalSpeed(config.maxVerticalSpeed))
+        sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
+        Thread.sleep(forTimeInterval: 0.05)
+        
+        sendCommand(atCommands.setMaxYawSpeed(config.maxYawSpeed))
+        sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
+        Thread.sleep(forTimeInterval: 0.05)
+        
+        sendCommand(atCommands.enableGPS(config.gpsEnabled))
+        sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
+        Thread.sleep(forTimeInterval: 0.05)
+        
+        // Final CTRL to commit all changes
+        sendCommand(atCommands.ctrl(mode: 5, miscValue: 0))
         
         currentFlightConfig = config
+        print("✅ Configuration applied to drone")
     }
     
     /// Update individual parameter (for UI sliders)
     func updateFlightParameter(maxTilt: Int? = nil, maxAltitude: Int? = nil,
                                maxVerticalSpeed: Int? = nil, maxYawSpeed: Float? = nil) {
+        // Send CONFIG_IDS before any AT*CONFIG
+        sendCommand(atCommands.configIds(sessionId: sessionId, userId: userId, applicationId: applicationId))
+        Thread.sleep(forTimeInterval: 0.05)
+        
         if let tilt = maxTilt {
             currentFlightConfig.maxTilt = tilt
             sendCommand(atCommands.setMaxTilt(tilt))
+            sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
+            Thread.sleep(forTimeInterval: 0.05)
+            print("📝 Max tilt updated: \(tilt/1000)°")
         }
         if let altitude = maxAltitude {
             currentFlightConfig.maxAltitude = altitude
             sendCommand(atCommands.setMaxAltitude(altitude))
+            sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
+            Thread.sleep(forTimeInterval: 0.05)
+            print("📝 Max altitude updated: \(altitude/1000)m")
         }
         if let vSpeed = maxVerticalSpeed {
             currentFlightConfig.maxVerticalSpeed = vSpeed
             sendCommand(atCommands.setMaxVerticalSpeed(vSpeed))
+            sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
+            Thread.sleep(forTimeInterval: 0.05)
+            print("📝 Max vertical speed updated: \(vSpeed)mm/s")
         }
         if let ySpeed = maxYawSpeed {
             currentFlightConfig.maxYawSpeed = ySpeed
             sendCommand(atCommands.setMaxYawSpeed(ySpeed))
+            sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
+            Thread.sleep(forTimeInterval: 0.05)
+            print("📝 Max yaw speed updated: \(ySpeed)°/s")
         }
+        
+        // Final CTRL to commit
+        sendCommand(atCommands.ctrl(mode: 5, miscValue: 0))
     }
     
     func setHullProtection(_ enabled: Bool) {
