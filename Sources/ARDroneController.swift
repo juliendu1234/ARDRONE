@@ -50,10 +50,6 @@ class ARDroneController {
     private var yaw: Float = 0.0
     private var gaz: Float = 0.0
     
-    // Flight mode configuration
-    var currentFlightConfig: FlightModeConfig = FlightModeConfig.indoor
-    var isOutdoorMode: Bool = false
-    
     // Hover management
     private var isAutoHoverActive = false
     private var lastInputTime: Date?
@@ -65,11 +61,6 @@ class ARDroneController {
     
     // Video
     let videoHandler = VideoStreamHandler()
-    
-    // GPS and Home Point
-    private var homePoint: (latitude: Double, longitude: Double)?
-    private var homeAltitude: Float = 0.0
-    var onHomePointSet: ((Double, Double) -> Void)?
     
     // Navigation GPS réelle
     private var isNavigatingHome = false
@@ -294,10 +285,7 @@ class ARDroneController {
         sendCommand(atCommands.setVideoBitrate(2000000))
         sendCommand(atCommands.setFPS(30))
         
-        // Step 3: Apply flight mode configuration (indoor by default)
-        applyFlightModeConfig(currentFlightConfig)
-        
-        // Step 4: Send CTRL command to acknowledge configuration
+        // Step 3: Send CTRL command to acknowledge configuration
         sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
         
         isConfigured = true
@@ -832,22 +820,6 @@ class ARDroneController {
     func switchVideoChannel(_ channel: ATCommands.VideoChannel) {
         sendCommand(atCommands.setVideoChannel(channel))
     }
-    
-    // MARK: - GPS and Home Point
-    
-    func setHomePoint(_ latitude: Double, _ longitude: Double) {
-        homePoint = (latitude, longitude)
-        homeAltitude = currentNavData?.altitudeMeters ?? 0
-        print(String(format: "🏠 Home: %.6f, %.6f @ %.1fm", latitude, longitude, homeAltitude))
-        
-        onHomePointSet?(latitude, longitude)
-    }
-    
-    func returnToHome() {
-        guard homePoint != nil, let current = currentNavData else {
-            print("❌ No home or GPS")
-            return
-        }
         
         guard let home = homePoint else { return }
         
@@ -909,143 +881,6 @@ class ARDroneController {
     
     func setMaxTilt(_ degrees: Float) {
         sendCommand(atCommands.setMaxTilt(Int(degrees * 1000)))
-    }
-    
-    func setOutdoorMode(_ outdoor: Bool) {
-        isOutdoorMode = outdoor
-        
-        // Apply appropriate preset configuration
-        let config = outdoor ? FlightModeConfig.outdoor : FlightModeConfig.indoor
-        currentFlightConfig = config
-        
-        // Apply the full configuration
-        applyFlightModeConfig(config)
-        
-        print("🌍 Flight mode set to: \(outdoor ? "OUTDOOR" : "INDOOR")")
-        print("   Configuration applied:")
-        print("   - Max tilt: \(config.maxTilt/1000)°")
-        print("   - Max altitude: \(config.maxAltitude/1000)m")
-        print("   - Max vertical speed: \(config.maxVerticalSpeed)mm/s")
-        print("   - Max yaw speed: \(config.maxYawSpeed)°/s")
-        print("   - GPS: \(config.gpsEnabled ? "ENABLED" : "DISABLED")")
-    }
-    
-    /// Apply a complete flight mode configuration to the drone
-    func applyFlightModeConfig(_ config: FlightModeConfig) {
-        print("📝 Applying flight mode configuration...")
-        print("   - Outdoor: \(config.outdoor)")
-        print("   - Max tilt: \(config.maxTilt/1000)°")
-        print("   - Max altitude: \(config.maxAltitude/1000)m")
-        print("   - Max vertical speed: \(config.maxVerticalSpeed)mm/s")
-        print("   - Max yaw speed: \(config.maxYawSpeed)°/s")
-        
-        // According to SDK, we must send CONFIG_IDS before any AT*CONFIG
-        sendCommand(atCommands.configIds(sessionId: sessionId, userId: userId, applicationId: applicationId))
-        
-        // Use async delays to avoid blocking main thread (critical for network operations)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            guard let self = self else { return }
-            
-            self.sendCommand(self.atCommands.setOutdoorMode(config.outdoor))
-            self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                guard let self = self else { return }
-                
-                self.sendCommand(self.atCommands.setMaxTilt(config.maxTilt))
-                self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                    guard let self = self else { return }
-                    
-                    self.sendCommand(self.atCommands.setMaxAltitude(config.maxAltitude))
-                    self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                        guard let self = self else { return }
-                        
-                        self.sendCommand(self.atCommands.setMaxVerticalSpeed(config.maxVerticalSpeed))
-                        self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                            guard let self = self else { return }
-                            
-                            self.sendCommand(self.atCommands.setMaxYawSpeed(config.maxYawSpeed))
-                            self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
-                            
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                                guard let self = self else { return }
-                                
-                                // Final CTRL to commit all changes
-                                self.sendCommand(self.atCommands.ctrl(mode: 5, miscValue: 0))
-                                
-                                self.currentFlightConfig = config
-                                print("✅ Configuration applied to drone")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    /// Update individual parameter (for UI sliders)
-    func updateFlightParameter(maxTilt: Int? = nil, maxAltitude: Int? = nil,
-                               maxVerticalSpeed: Int? = nil, maxYawSpeed: Float? = nil) {
-        // Send CONFIG_IDS before any AT*CONFIG
-        sendCommand(atCommands.configIds(sessionId: sessionId, userId: userId, applicationId: applicationId))
-        
-        var delay: Double = 0.05
-        
-        if let tilt = maxTilt {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self = self else { return }
-                self.currentFlightConfig.maxTilt = tilt
-                self.sendCommand(self.atCommands.setMaxTilt(tilt))
-                self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
-                print("📝 Max tilt updated: \(tilt/1000)°")
-            }
-            delay += 0.05
-        }
-        
-        if let altitude = maxAltitude {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self = self else { return }
-                self.currentFlightConfig.maxAltitude = altitude
-                self.sendCommand(self.atCommands.setMaxAltitude(altitude))
-                self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
-                print("📝 Max altitude updated: \(altitude/1000)m")
-            }
-            delay += 0.05
-        }
-        
-        if let vSpeed = maxVerticalSpeed {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self = self else { return }
-                self.currentFlightConfig.maxVerticalSpeed = vSpeed
-                self.sendCommand(self.atCommands.setMaxVerticalSpeed(vSpeed))
-                self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
-                print("📝 Max vertical speed updated: \(vSpeed)mm/s")
-            }
-            delay += 0.05
-        }
-        
-        if let ySpeed = maxYawSpeed {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self = self else { return }
-                self.currentFlightConfig.maxYawSpeed = ySpeed
-                self.sendCommand(self.atCommands.setMaxYawSpeed(ySpeed))
-                self.sendCommand(self.atCommands.ctrl(mode: 4, miscValue: 0))
-                print("📝 Max yaw speed updated: \(ySpeed)°/s")
-            }
-            delay += 0.05
-        }
-        
-        // Final CTRL to commit
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self = self else { return }
-            self.sendCommand(self.atCommands.ctrl(mode: 5, miscValue: 0))
-        }
     }
     
     func setHullProtection(_ enabled: Bool) {
