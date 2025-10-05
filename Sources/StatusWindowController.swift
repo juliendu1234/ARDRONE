@@ -646,7 +646,9 @@ class StatusWindowController: NSWindowController {
             ("Share", "Mode Hover", .systemCyan),
             ("Options", "Déconnexion", .systemIndigo),
             ("D-Pad ↑", "Caméra avant", .systemTeal),
-            ("D-Pad ↓", "Caméra bas", .systemTeal)
+            ("D-Pad ↓", "Caméra bas", .systemTeal),
+            ("D-Pad ←", "Enregistrement vidéo", .systemTeal),
+            ("D-Pad →", "Prendre photo", .systemTeal)
         ]
         
         let cardWidth: CGFloat = 290  // Increased from 280
