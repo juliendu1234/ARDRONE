@@ -52,37 +52,78 @@ swift package generate-xcodeproj
 
 Si vous préférez vraiment avoir un `.xcodeproj` traditionnel :
 
-1. **Créer un nouveau projet Xcode**
+#### ⚠️ IMPORTANT : Utilisez AppKit, PAS SwiftUI
+
+Ce projet utilise AppKit (NSApplication) avec un fichier `main.swift` personnalisé. **NE CRÉEZ PAS** un projet SwiftUI avec `@main struct App`.
+
+1. **Créer un nouveau projet Xcode avec AppKit**
    - Ouvrez Xcode
    - File > New > Project
    - Choisissez "macOS" > "App"
    - Nom : ARDroneController
    - Organization Identifier : com.quadlife
-   - Interface : AppKit (pas SwiftUI)
+   - **Interface : Storyboard** (PAS SwiftUI - très important!)
    - Language : Swift
    - Décochez "Use Core Data" et "Include Tests"
 
-2. **Copier les fichiers source**
-   - Supprimez les fichiers Swift de base créés par Xcode (AppDelegate.swift, etc.)
-   - Glissez-déposez tous les fichiers du dossier `Sources/` dans votre projet
-   - Cochez "Copy items if needed"
+2. **Supprimer les fichiers générés par défaut**
+   - Supprimez **tous** les fichiers Swift créés par Xcode :
+     - `AppDelegate.swift` (sera remplacé par notre `main.swift`)
+     - `ViewController.swift`
+   - Supprimez également `Main.storyboard` (nous utilisons des fenêtres programmatiques)
 
-3. **Configurer l'Info.plist**
-   - Remplacez le contenu de l'Info.plist du projet par celui du fichier `Info.plist` existant
-   - Ou copiez les clés importantes (permissions Bluetooth, réseau, etc.)
+3. **Copier les fichiers source**
+   - Glissez-déposez **tous** les fichiers du dossier `Sources/` dans votre projet Xcode
+   - **Cochez** "Copy items if needed"
+   - **Cochez** "Create groups"
+   - **Assurez-vous** que le target "ARDroneController" est sélectionné
+   
+   Fichiers à copier :
+   - `main.swift` (⚠️ très important - c'est le point d'entrée)
+   - `ARDroneController.swift`
+   - `StatusWindowController.swift`
+   - `GamepadManager.swift`
+   - `VideoStreamHandler.swift`
+   - `NavData.swift`
+   - `ATCommands.swift`
+   - `DroneConfig.swift`
+   - `SplashWindowController.swift`
+   - `GlobalHotkeyManager.swift`
 
-4. **Ajouter les ressources**
+4. **Configurer l'Info.plist**
+   - Ouvrez l'Info.plist de votre projet
+   - **Supprimez** la clé `NSMainStoryboardFile` (nous n'utilisons pas de storyboard)
+   - **Ajoutez** toutes les permissions du fichier `Info.plist` existant :
+     ```xml
+     <key>NSBluetoothAlwaysUsageDescription</key>
+     <string>This app needs Bluetooth access to connect to your DualShock 4 controller.</string>
+     <key>NSLocalNetworkUsageDescription</key>
+     <string>This app needs local network access to communicate with your AR.Drone 2.0.</string>
+     <key>NSLocationWhenInUseUsageDescription</key>
+     <string>ARDrone Controller nécessite la localisation pour détecter le réseau Wi-Fi du drone.</string>
+     ```
+   - Ou remplacez complètement l'Info.plist par le fichier existant
+
+5. **Ajouter les ressources**
    - Glissez-déposez le dossier `Resources/` dans votre projet
+   - Cochez "Create folder references" (pas "Create groups")
    - Assurez-vous que les ressources sont bien ajoutées au target
+   - Vérifiez dans Build Phases > Copy Bundle Resources que `dualshock4.png` est présent
 
-5. **Configurer les frameworks**
-   - Dans Project Settings > General > Frameworks and Libraries
-   - Les frameworks nécessaires sont déjà importés dans le code :
-     - Cocoa (automatique pour macOS)
+6. **Configurer les frameworks**
+   - Allez dans Project Settings > General > Frameworks and Libraries
+   - Ajoutez si nécessaire (normalement automatique) :
+     - CoreWLAN.framework
+   - Les autres frameworks sont automatiques :
+     - Cocoa
      - AVFoundation
      - GameController
-     - CoreWLAN
      - Network
+
+7. **Vérifier la configuration du target**
+   - Dans Build Settings, cherchez "Info.plist File"
+   - Assurez-vous qu'il pointe vers votre Info.plist
+   - Vérifiez que "Deployment Target" est macOS 13.0 minimum
 
 ## Structure du Projet
 
@@ -140,6 +181,55 @@ Tous ces frameworks font partie du SDK macOS standard :
 
 ### Problème : Les ressources ne sont pas trouvées
 **Solution** : Vérifiez que le dossier Resources est bien ajouté au target dans Build Phases > Copy Bundle Resources.
+
+### Problème : J'ai créé un projet SwiftUI par erreur avec `@main struct App`
+
+**Symptôme** : Vous avez un fichier comme celui-ci :
+```swift
+import SwiftUI
+
+@main
+struct ARDrone_Parrot_2_0___DualShock_4___SwiftApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+```
+
+**Solution** : Ce projet n'utilise PAS SwiftUI, il utilise AppKit avec un fichier `main.swift` personnalisé.
+
+**Options** :
+
+**Option A - Recréer le projet correctement (recommandé)** :
+1. Fermez Xcode
+2. Supprimez le projet SwiftUI que vous avez créé
+3. Suivez les instructions "Option 2" ci-dessus en choisissant **Storyboard** comme interface (pas SwiftUI)
+4. Copiez les fichiers Sources/ dans le nouveau projet
+5. N'oubliez pas d'inclure `main.swift` - c'est le point d'entrée de l'application
+
+**Option B - Convertir le projet SwiftUI existant** :
+1. **Supprimez** le fichier `@main struct App` que Xcode a créé
+2. **Supprimez** `ContentView.swift`
+3. **Copiez** tous les fichiers du dossier `Sources/` dans votre projet
+4. **Assurez-vous** que `main.swift` est bien copié - il contient le point d'entrée de l'app
+5. Dans Info.plist, **supprimez** toute référence à `NSMainStoryboardFile` ou SwiftUI
+6. Compilez - Xcode devrait maintenant utiliser le `main.swift` comme point d'entrée
+
+**Pourquoi ce projet utilise `main.swift` au lieu de `@main` ?**
+- Ce projet crée une application AppKit traditionnelle avec NSApplication
+- Il a besoin d'un contrôle total sur le cycle de vie de l'application
+- Le fichier `main.swift` à la ligne 126-152 initialise manuellement l'application :
+  ```swift
+  let app = NSApplication.shared
+  let delegate = AppDelegate()
+  app.delegate = delegate
+  app.run()
+  ```
+
+### Problème : "Cannot find 'main' in scope"
+**Solution** : Vous essayez d'importer un module appelé `main`. Ce n'est pas un module, c'est le point d'entrée de l'application. Supprimez l'import `import main` et assurez-vous que le fichier `main.swift` est dans votre projet.
 
 ## Commandes Utiles
 
