@@ -242,11 +242,6 @@ class ATCommands {
         return config(key: "control:control_yaw", value: String(speed))
     }
     
-    /// Set outdoor mode
-    func setOutdoorMode(_ outdoor: Bool) -> String {
-        return config(key: "control:outdoor", value: outdoor ? "TRUE" : "FALSE")
-    }
-    
     /// Set hull protection
     func setHullProtection(_ enabled: Bool) -> String {
         return config(key: "control:flight_without_shell", value: enabled ? "FALSE" : "TRUE")
