@@ -8,12 +8,11 @@ struct DroneControls {
     static let emergency = "TRIANGLE"
     static let resetEmergency = "CIRCLE"
     static let quit = "OPTIONS"
-    // L2 and R2 are now available - sensitivity controlled via UI
+    static let hoverMode = "SHARE"
+    static let availableL1 = "L1"  // TODO: Assign new function
+    static let availableR1 = "R1"  // TODO: Assign new function
     static let availableL2 = "L2"  // TODO: Assign new function
     static let availableR2 = "R2"  // TODO: Assign new function
-    static let hoverMode = "SHARE"
-    static let setHome = "L1"
-    static let returnHome = "R1"
     static let cameraFront = "DPAD_UP"
     static let cameraBottom = "DPAD_DOWN"
     static let recordVideo = "DPAD_LEFT"
@@ -35,19 +34,13 @@ struct SensitivityConfig {
     static let deadzone: Float = 0.20
 }
 
+
+
 struct HoverConfig {
     static let autoHoverEnabled = true
     static let inputTimeout: TimeInterval = 0.5
     static let hoverForceDelay: TimeInterval = 1.0
     static let disableAutoStabilization = true
-}
-
-struct GPSConfig {
-    static let baudRate = 9600
-    static let timeout: TimeInterval = 1.0
-    static let homePrecision: Float = 5.0
-    static let updateRate: TimeInterval = 1.0
-    static let minSatellites = 4
 }
 
 struct DroneConfig {
@@ -70,14 +63,11 @@ enum DroneState {
     case landing
     case emergency
     case hovering
-    case returningHome
 }
 
 enum DroneFlightMode {
     case manual
     case hover
-    case gps
-    case returnToHome
 }
 
 struct DroneStatus {
@@ -86,10 +76,6 @@ struct DroneStatus {
     var sensitivity: Float = SensitivityConfig.startPercent
     var batteryLevel: Float = 0
     var altitude: Float = 0
-    var gpsEnabled: Bool = false
-    var gpsLocation: (latitude: Double, longitude: Double)?
-    var homeLocation: (latitude: Double, longitude: Double)?
-    var satelliteCount: Int = 0
     var isEmergency: Bool = false
 }
 

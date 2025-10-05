@@ -23,14 +23,12 @@ class ARDroneController {
     private var commandTimer: Timer?
     private var failsafeTimer: Timer?
     private var reconnectionTimer: Timer?
-    private var rthTimer: Timer?
     private var hoverTimer: Timer?
     
     // Failsafe system
     private enum FailsafeState {
         case normal
         case reconnecting
-        case returningToHome
         case landing
     }
     
@@ -50,9 +48,6 @@ class ARDroneController {
     private var yaw: Float = 0.0
     private var gaz: Float = 0.0
     
-    // Sensitivity management
-    var currentSensitivity: Float = SensitivityConfig.startPercent
-    
     // Hover management
     private var isAutoHoverActive = false
     private var lastInputTime: Date?
@@ -64,16 +59,6 @@ class ARDroneController {
     
     // Video
     let videoHandler = VideoStreamHandler()
-    
-    // GPS and Home Point
-    private var homePoint: (latitude: Double, longitude: Double)?
-    private var homeAltitude: Float = 0.0
-    var onHomePointSet: ((Double, Double) -> Void)?
-    
-    // Navigation GPS réelle
-    private var isNavigatingHome = false
-    private let navigationUpdateInterval: TimeInterval = 0.2
-    private let arrivalTolerance: Double = 3.0
     
     // Configuration
     private var isConfigured = false
@@ -220,10 +205,13 @@ class ARDroneController {
         
         if isConnectedToDrone() {
             sendCommand(atCommands.ref(ATCommands.ControlFlags.land))
-            Thread.sleep(forTimeInterval: 0.5)
+            // Use async delay instead of blocking
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.cleanupConnections()
+            }
+        } else {
+            cleanupConnections()
         }
-        
-        cleanupConnections()
         
         isNetworkReady = false
         isReceivingNavData = false
@@ -246,8 +234,6 @@ class ARDroneController {
         failsafeTimer = nil
         reconnectionTimer?.invalidate()
         reconnectionTimer = nil
-        rthTimer?.invalidate()
-        rthTimer = nil
         hoverTimer?.invalidate()
         hoverTimer = nil
         
@@ -290,17 +276,7 @@ class ARDroneController {
         sendCommand(atCommands.setVideoBitrate(2000000))
         sendCommand(atCommands.setFPS(30))
         
-        // Step 3: Control limits configuration
-        sendCommand(atCommands.setMaxAltitude(10000))  // 10 meters max
-        sendCommand(atCommands.setOutdoorMode(false))  // Indoor mode
-        
-        // Step 4: Configure default sensitivity via AT*CONFIG (SDK-compliant)
-        configureSensitivityFromPercent(currentSensitivity)
-        
-        // Step 5: GPS configuration
-        sendCommand(atCommands.enableGPS(true))
-        
-        // Step 6: Send CTRL command to acknowledge configuration
+        // Step 3: Send CTRL command to acknowledge configuration
         sendCommand(atCommands.ctrl(mode: 4, miscValue: 0))
         
         isConfigured = true
@@ -419,20 +395,6 @@ class ARDroneController {
                         self.isReceivingNavData = true
                         self.lastNavDataTime = Date()
                         self.onNavDataReceived?(navData)
-                        
-                        // Auto-set home point
-                        if self.homePoint == nil,
-                           navData.gpsNumSatellites >= GPSConfig.minSatellites,
-                           navData.gpsLatitude != 0,
-                           navData.gpsLongitude != 0 {
-                            
-                            self.homePoint = (navData.gpsLatitude, navData.gpsLongitude)
-                            self.homeAltitude = navData.altitudeMeters
-                            print(String(format: "🏠 Auto-Home: %.6f, %.6f @ %.1fm",
-                                         navData.gpsLatitude, navData.gpsLongitude, navData.altitudeMeters))
-                            
-                            self.onHomePointSet?(navData.gpsLatitude, navData.gpsLongitude)
-                        }
                     } else {
                         print("❌ navDataParser.parse() returned nil")
                     }
@@ -481,20 +443,6 @@ class ARDroneController {
                 self.isReceivingNavData = true
                 self.lastNavDataTime = Date()
                 self.onNavDataReceived?(navData)
-                
-                // Auto-set home point
-                if self.homePoint == nil,
-                   navData.gpsNumSatellites >= GPSConfig.minSatellites,
-                   navData.gpsLatitude != 0,
-                   navData.gpsLongitude != 0 {
-                    
-                    self.homePoint = (navData.gpsLatitude, navData.gpsLongitude)
-                    self.homeAltitude = navData.altitudeMeters
-                    print(String(format: "🏠 Auto-Home: %.6f, %.6f @ %.1fm",
-                                 navData.gpsLatitude, navData.gpsLongitude, navData.altitudeMeters))
-                    
-                    self.onHomePointSet?(navData.gpsLatitude, navData.gpsLongitude)
-                }
             } else {
                 print("❌ navDataParser.parse() returned nil")
             }
@@ -631,8 +579,6 @@ class ARDroneController {
         
         reconnectionTimer?.invalidate()
         reconnectionTimer = nil
-        rthTimer?.invalidate()
-        rthTimer = nil
         
         failsafeState = .normal
         failsafeStartTime = nil
@@ -653,85 +599,8 @@ class ARDroneController {
         reconnectionTimer?.invalidate()
         reconnectionTimer = nil
         
-        if homePoint != nil {
-            failsafeState = .returningToHome
-            performLEDAnimation(.blinkGreen, frequency: 2.0, duration: 120)
-            print("🏠 Initiating Return To Home")
-            onFailsafeActivated?("Retour au point Home")
-            
-            startAutomaticRTH()
-            
-        } else {
-            print("❌ No home point - Landing")
-            initiateFailsafeLanding()
-        }
-    }
-    
-    private func startAutomaticRTH() {
-        var rthAttempts = 0
-        let maxRthAttempts = 120
-        
-        rthTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
-            guard let self = self else {
-                timer.invalidate()
-                return
-            }
-            
-            if self.failsafeState != .returningToHome {
-                timer.invalidate()
-                return
-            }
-            
-            let shouldContinue = self.executeRTHStep()
-            
-            if !shouldContinue {
-                timer.invalidate()
-                self.initiateFailsafeLanding()
-                return
-            }
-            
-            rthAttempts += 1
-            if rthAttempts >= maxRthAttempts {
-                print("⏱️ RTH timeout")
-                timer.invalidate()
-                self.initiateFailsafeLanding()
-            }
-        }
-    }
-    
-    private func executeRTHStep() -> Bool {
-        guard let home = homePoint, let current = currentNavData else {
-            print("❌ RTH failed: No data")
-            return false
-        }
-        
-        let distance = calculateDistance(from: (current.gpsLatitude, current.gpsLongitude), to: home)
-        
-        if distance < arrivalTolerance {
-            print("🏠 Arrived at home (\(String(format: "%.1f", distance))m)")
-            return false
-        }
-        
-        let bearing = calculateBearing(from: (current.gpsLatitude, current.gpsLongitude), to: home)
-        
-        let currentHeading = Double((current.yaw + 360).truncatingRemainder(dividingBy: 360))
-        var relativeAngle = bearing - currentHeading
-        
-        if relativeAngle > 180 {
-            relativeAngle -= 360
-        } else if relativeAngle < -180 {
-            relativeAngle += 360
-        }
-        
-        let yawSpeed = Float(max(-0.5, min(0.5, relativeAngle / 90.0)))
-        let forwardSpeed: Float = abs(relativeAngle) < 30 ? 0.25 : 0.0
-        
-        print(String(format: "🧭 RTH: %.0fm | Heading %.0f° → %.0f° (Δ%.0f°)",
-                     distance, currentHeading, bearing, relativeAngle))
-        
-        setMovement(roll: 0, pitch: forwardSpeed, yaw: yawSpeed, gaz: 0)
-        
-        return true
+        print("❌ Connection lost - Landing")
+        initiateFailsafeLanding()
     }
     
     private func initiateFailsafeLanding() {
@@ -739,9 +608,6 @@ class ARDroneController {
         failsafeState = .landing
         performLEDAnimation(.blinkRed, frequency: 4.0, duration: 30)
         onFailsafeActivated?("Atterrissage d'urgence")
-        
-        rthTimer?.invalidate()
-        rthTimer = nil
         
         land()
         
@@ -805,51 +671,6 @@ class ARDroneController {
     
     /// Configure drone sensitivity via AT*CONFIG commands (SDK-compliant)
     /// - Parameter sensitivityPercent: Sensitivity from 10% to 100%
-    func configureSensitivityFromPercent(_ sensitivityPercent: Float) {
-        let clampedPercent = max(SensitivityConfig.minPercent, min(SensitivityConfig.maxPercent, sensitivityPercent))
-        currentSensitivity = clampedPercent
-        
-        // Convert percentage to actual drone parameters according to SDK
-        // euler_angle_max: Max tilt in millidegrees (0.01°)
-        // Base: 30° (30000 millidegrees) at 100%
-        let maxTilt = Int(30000.0 * (clampedPercent / 100.0))
-        
-        // control_vz_max: Max vertical speed in mm/s
-        // Base: 1000 mm/s (1 m/s) at 100%
-        let maxVerticalSpeed = Int(1000.0 * (clampedPercent / 100.0))
-        
-        // control_yaw: Max yaw speed in °/s
-        // Base: 200°/s at 100%
-        let maxYawSpeed = 200.0 * (clampedPercent / 100.0)
-        
-        // Send AT*CONFIG commands to drone
-        sendCommand(atCommands.setMaxTilt(maxTilt))
-        sendCommand(atCommands.setMaxVerticalSpeed(maxVerticalSpeed))
-        sendCommand(atCommands.setMaxYawSpeed(Float(maxYawSpeed)))
-        
-        print("✅ Sensitivity configured to \(Int(clampedPercent))% via AT*CONFIG")
-        print("   - Max tilt: \(maxTilt/1000)° (euler_angle_max)")
-        print("   - Max vertical: \(maxVerticalSpeed)mm/s (control_vz_max)")
-        print("   - Max yaw: \(String(format: "%.1f", maxYawSpeed))°/s (control_yaw)")
-    }
-    
-    func decreaseSensitivity() {
-        let newSensitivity = currentSensitivity - SensitivityConfig.stepPercent
-        configureSensitivityFromPercent(newSensitivity)
-        print("⬇️ Sensitivity: \(Int(currentSensitivity))%")
-    }
-    
-    func increaseSensitivity() {
-        let newSensitivity = currentSensitivity + SensitivityConfig.stepPercent
-        configureSensitivityFromPercent(newSensitivity)
-        print("⬆️ Sensitivity: \(Int(currentSensitivity))%")
-    }
-    
-    /// Set sensitivity directly to a specific percentage
-    /// - Parameter percent: Target sensitivity (10-100%)
-    func setSensitivity(_ percent: Float) {
-        configureSensitivityFromPercent(percent)
-    }
     
     // MARK: - Animation Commands
     
@@ -881,74 +702,6 @@ class ARDroneController {
         sendCommand(atCommands.setVideoChannel(channel))
     }
     
-    // MARK: - GPS and Home Point
-    
-    func setHomePoint(_ latitude: Double, _ longitude: Double) {
-        homePoint = (latitude, longitude)
-        homeAltitude = currentNavData?.altitudeMeters ?? 0
-        print(String(format: "🏠 Home: %.6f, %.6f @ %.1fm", latitude, longitude, homeAltitude))
-        
-        onHomePointSet?(latitude, longitude)
-    }
-    
-    func returnToHome() {
-        guard homePoint != nil, let current = currentNavData else {
-            print("❌ No home or GPS")
-            return
-        }
-        
-        guard let home = homePoint else { return }
-        
-        let distance = calculateDistance(from: (current.gpsLatitude, current.gpsLongitude), to: home)
-        
-        print(String(format: "🏠 Manual RTH: %.0fm", distance))
-        
-        failsafeState = .returningToHome
-        performLEDAnimation(.blinkGreen, frequency: 2.0, duration: 120)
-        onFailsafeActivated?("Retour Home (manuel)")
-        
-        startAutomaticRTH()
-    }
-    
-    func clearHomePoint() {
-        homePoint = nil
-        print("🏠 Home cleared")
-    }
-    
-    // MARK: - GPS Calculations
-    
-    private func calculateDistance(from: (latitude: Double, longitude: Double),
-                                 to: (latitude: Double, longitude: Double)) -> Double {
-        let earthRadius = 6371000.0
-        
-        let lat1Rad = from.latitude * .pi / 180
-        let lat2Rad = to.latitude * .pi / 180
-        let deltaLatRad = (to.latitude - from.latitude) * .pi / 180
-        let deltaLonRad = (to.longitude - from.longitude) * .pi / 180
-        
-        let a = sin(deltaLatRad/2) * sin(deltaLatRad/2) +
-                cos(lat1Rad) * cos(lat2Rad) *
-                sin(deltaLonRad/2) * sin(deltaLonRad/2)
-        let c = 2 * atan2(sqrt(a), sqrt(1-a))
-        
-        return earthRadius * c
-    }
-    
-    private func calculateBearing(from: (latitude: Double, longitude: Double),
-                                to: (latitude: Double, longitude: Double)) -> Double {
-        let lat1Rad = from.latitude * .pi / 180
-        let lat2Rad = to.latitude * .pi / 180
-        let deltaLonRad = (to.longitude - from.longitude) * .pi / 180
-        
-        let y = sin(deltaLonRad) * cos(lat2Rad)
-        let x = cos(lat1Rad) * sin(lat2Rad) - sin(lat1Rad) * cos(lat2Rad) * cos(deltaLonRad)
-        
-        let bearingRad = atan2(y, x)
-        let bearingDeg = bearingRad * 180 / .pi
-        
-        return (bearingDeg + 360).truncatingRemainder(dividingBy: 360)
-    }
-    
     // MARK: - Configuration
     
     func setMaxAltitude(_ meters: Int) {
@@ -957,10 +710,6 @@ class ARDroneController {
     
     func setMaxTilt(_ degrees: Float) {
         sendCommand(atCommands.setMaxTilt(Int(degrees * 1000)))
-    }
-    
-    func setOutdoorMode(_ outdoor: Bool) {
-        sendCommand(atCommands.setOutdoorMode(outdoor))
     }
     
     func setHullProtection(_ enabled: Bool) {
@@ -996,12 +745,6 @@ class ARDroneController {
             return isConnectedToDrone() ? "Connecté" : "Déconnecté"
         case .reconnecting:
             return "Reconnexion (\(reconnectionAttempts)/\(maxReconnectionAttempts))"
-        case .returningToHome:
-            if let home = homePoint, let current = currentNavData {
-                let distance = calculateDistance(from: (current.gpsLatitude, current.gpsLongitude), to: home)
-                return String(format: "RTH (%.0fm)", distance)
-            }
-            return "Retour Home"
         case .landing:
             return "Atterrissage"
         }

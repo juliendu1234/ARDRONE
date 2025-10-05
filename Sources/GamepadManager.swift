@@ -261,22 +261,8 @@ class GamepadManager {
             }
         }
         
-        // L1 - DÉFINIR HOME
-        gamepad.leftShoulder.pressedChangedHandler = { [weak self] (button, value, pressed) in
-            if pressed {
-                self?.handleSetHomePoint()
-            }
-        }
-        
-        // R1 - RETOUR HOME
-        gamepad.rightShoulder.pressedChangedHandler = { [weak self] (button, value, pressed) in
-            if pressed {
-                self?.handleReturnToHome()
-            }
-        }
-        
-        // L2 - AVAILABLE (previously: decrease sensitivity)
-        // Sensitivity now controlled via UI sliders
+        // L1 - AVAILABLE (TODO)
+        // L2 - AVAILABLE (TODO)
         gamepad.leftTrigger.pressedChangedHandler = { [weak self] (button, value, pressed) in
             // TODO: Assign new function for L2
             if pressed {
@@ -393,50 +379,6 @@ class GamepadManager {
     private func handleHover() {
         guard isFlying else { return }
                 droneController.hover()
-    }
-    
-    private func handleSetHomePoint() {
-        print("📍 L1 pressed - Setting home point...")
-        
-        if let gpsData = droneController.getGPSData(), gpsData.sats >= 4 {
-            droneController.setHomePoint(gpsData.lat, gpsData.lon)
-            print(String(format: "✅ Home set: %.6f, %.6f (%d sats)",
-                         gpsData.lat, gpsData.lon, gpsData.sats))
-            
-            // User notification
-            showTemporaryNotification(
-                title: "🏠 Home Point Défini",
-                message: String(format: "Position: %.6f, %.6f\nSatellites: %d",
-                               gpsData.lat, gpsData.lon, gpsData.sats),
-                duration: 3.0
-            )
-        } else {
-            let sats = droneController.getGPSData()?.sats ?? 0
-            print("❌ Cannot set home: insufficient GPS (sats: \(sats), need: 4)")
-            showTemporaryNotification(
-                title: "❌ GPS Insuffisant",
-                message: "Satellites: \(sats)/4 requis\nAttendez un meilleur signal GPS",
-                duration: 3.0
-            )
-        }
-    }
-
-    private func handleReturnToHome() {
-        print("🏠 R1 pressed - Return to home...")
-        
-        // Verify GPS and home point are available
-        guard let gpsData = droneController.getGPSData(), gpsData.sats >= 4 else {
-            let sats = droneController.getGPSData()?.sats ?? 0
-            print("❌ Cannot RTH: insufficient GPS (sats: \(sats))")
-            showTemporaryNotification(
-                title: "❌ GPS Insuffisant",
-                message: "Satellites: \(sats)/4 requis",
-                duration: 3.0
-            )
-            return
-        }
-        
-        droneController.returnToHome()
     }
 
     // NOUVELLE FONCTION : Notification non-bloquante

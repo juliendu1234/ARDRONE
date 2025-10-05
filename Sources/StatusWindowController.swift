@@ -55,14 +55,8 @@ class StatusWindowController: NSWindowController {
     private let rollValueLabel = NSTextField(labelWithString: "---°")
     private let yawTitleLabel = NSTextField(labelWithString: "↻ Yaw:")
     private let yawValueLabel = NSTextField(labelWithString: "---°")
-    private let sensTitleLabel = NSTextField(labelWithString: "🎚️ Sens:")
-    private let sensValueLabel = NSTextField(labelWithString: "50%")
     
-    // Télémétrie - Colonne 4 (GPS & Moteurs)
-    private let gpsTitleLabel = NSTextField(labelWithString: "🛰️ GPS:")
-    private let gpsValueLabel = NSTextField(labelWithString: "INACTIF")
-    private let satsTitleLabel = NSTextField(labelWithString: "📡 Satellites:")
-    private let satsValueLabel = NSTextField(labelWithString: "0")
+    // Télémétrie - Colonne 4 (Moteurs)
     private let motor1TitleLabel = NSTextField(labelWithString: "M1:")
     private let motor1ValueLabel = NSTextField(labelWithString: "---")
     private let motor2TitleLabel = NSTextField(labelWithString: "M2:")
@@ -77,11 +71,6 @@ class StatusWindowController: NSWindowController {
     private let motor3ValueLabel = NSTextField(labelWithString: "---")
     private let motor4TitleLabel = NSTextField(labelWithString: "M4:")
     private let motor4ValueLabel = NSTextField(labelWithString: "---")
-    
-    // Sensitivity Controls (SDK-compliant AT*CONFIG)
-    private let sensitivitySlider = NSSlider()
-    private let sensitivityTitleLabel = NSTextField(labelWithString: "⚙️ SENSIBILITÉ (AT*CONFIG):")
-    private let sensitivityPercentLabel = NSTextField(labelWithString: "50%")
     
     private let wifiClient = CWWiFiClient.shared()
     private var lastObservedSSID: String?
@@ -411,14 +400,14 @@ class StatusWindowController: NSWindowController {
         
         let allTitles = [battTitleLabel, voltTitleLabel, currentTitleLabel, tempTitleLabel,
                         altTitleLabel, vSpeedTitleLabel, speedTitleLabel, headingTitleLabel,
-                        pitchTitleLabel, rollTitleLabel, yawTitleLabel, sensTitleLabel,
-                        gpsTitleLabel, satsTitleLabel, motor1TitleLabel, motor2TitleLabel,
+                        pitchTitleLabel, rollTitleLabel, yawTitleLabel,
+                        motor1TitleLabel, motor2TitleLabel,
                         stateTitleLabel, modeTitleLabel, motor3TitleLabel, motor4TitleLabel]
         
         let allValues = [battValueLabel, voltValueLabel, currentValueLabel, tempValueLabel,
                         altValueLabel, vSpeedValueLabel, speedValueLabel, headingValueLabel,
-                        pitchValueLabel, rollValueLabel, yawValueLabel, sensValueLabel,
-                        gpsValueLabel, satsValueLabel, motor1ValueLabel, motor2ValueLabel,
+                        pitchValueLabel, rollValueLabel, yawValueLabel,
+                        motor1ValueLabel, motor2ValueLabel,
                         stateValueLabel, modeValueLabel, motor3ValueLabel, motor4ValueLabel]
         
         for label in allTitles + allValues {
@@ -446,36 +435,30 @@ class StatusWindowController: NSWindowController {
             (battTitleLabel, battValueLabel),
             (voltTitleLabel, voltValueLabel),
             (currentTitleLabel, currentValueLabel),
-            (tempTitleLabel, tempValueLabel),
-            (gpsTitleLabel, gpsValueLabel)
-        ], in: container, x: 20, y: startY, rowHeight: rowHeight)  // Increased left margin
+            (tempTitleLabel, tempValueLabel)
+        ], in: container, x: 20, y: startY, rowHeight: rowHeight)
         
         layoutColumn(labels: [
             (altTitleLabel, altValueLabel),
             (vSpeedTitleLabel, vSpeedValueLabel),
             (speedTitleLabel, speedValueLabel),
-            (headingTitleLabel, headingValueLabel),
-            (satsTitleLabel, satsValueLabel)
+            (headingTitleLabel, headingValueLabel)
         ], in: container, x: 20 + colWidth, y: startY, rowHeight: rowHeight)
         
         layoutColumn(labels: [
             (pitchTitleLabel, pitchValueLabel),
             (rollTitleLabel, rollValueLabel),
             (yawTitleLabel, yawValueLabel),
-            (sensTitleLabel, sensValueLabel),
-            (motor1TitleLabel, motor1ValueLabel)
+            (motor1TitleLabel, motor1ValueLabel),
+            (motor2TitleLabel, motor2ValueLabel)
         ], in: container, x: 20 + colWidth * 2, y: startY, rowHeight: rowHeight)
         
         layoutColumn(labels: [
             (stateTitleLabel, stateValueLabel),
             (modeTitleLabel, modeValueLabel),
-            (motor2TitleLabel, motor2ValueLabel),
             (motor3TitleLabel, motor3ValueLabel),
             (motor4TitleLabel, motor4ValueLabel)
         ], in: container, x: 20 + colWidth * 3, y: startY, rowHeight: rowHeight)
-        
-        // Add sensitivity controls (SDK-compliant AT*CONFIG)
-        setupSensitivityControls(in: container, y: startY + rowHeight * 5.5)
         
         return container
     }
@@ -492,57 +475,6 @@ class StatusWindowController: NSWindowController {
                 value.centerYAnchor.constraint(equalTo: title.centerYAnchor)
             ])
         }
-    }
-    
-    private func setupSensitivityControls(in container: NSView, y: CGFloat) {
-        // Title
-        sensitivityTitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        sensitivityTitleLabel.font = NSFont.systemFont(ofSize: 13, weight: .bold)
-        sensitivityTitleLabel.textColor = .systemYellow
-        sensitivityTitleLabel.isBordered = false
-        sensitivityTitleLabel.backgroundColor = .clear
-        
-        // Slider
-        sensitivitySlider.translatesAutoresizingMaskIntoConstraints = false
-        sensitivitySlider.minValue = Double(SensitivityConfig.minPercent)
-        sensitivitySlider.maxValue = Double(SensitivityConfig.maxPercent)
-        sensitivitySlider.doubleValue = Double(droneController.currentSensitivity)
-        sensitivitySlider.target = self
-        sensitivitySlider.action = #selector(sensitivitySliderChanged(_:))
-        sensitivitySlider.isContinuous = true
-        
-        // Percent label
-        sensitivityPercentLabel.translatesAutoresizingMaskIntoConstraints = false
-        sensitivityPercentLabel.font = NSFont.monospacedSystemFont(ofSize: 16, weight: .bold)
-        sensitivityPercentLabel.textColor = .systemCyan
-        sensitivityPercentLabel.isBordered = false
-        sensitivityPercentLabel.backgroundColor = .clear
-        sensitivityPercentLabel.alignment = .center
-        
-        container.addSubview(sensitivityTitleLabel)
-        container.addSubview(sensitivitySlider)
-        container.addSubview(sensitivityPercentLabel)
-        
-        NSLayoutConstraint.activate([
-            sensitivityTitleLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
-            sensitivityTitleLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: y),
-            
-            sensitivitySlider.leadingAnchor.constraint(equalTo: sensitivityTitleLabel.trailingAnchor, constant: 12),
-            sensitivitySlider.centerYAnchor.constraint(equalTo: sensitivityTitleLabel.centerYAnchor),
-            sensitivitySlider.widthAnchor.constraint(equalToConstant: 600),
-            
-            sensitivityPercentLabel.leadingAnchor.constraint(equalTo: sensitivitySlider.trailingAnchor, constant: 12),
-            sensitivityPercentLabel.centerYAnchor.constraint(equalTo: sensitivitySlider.centerYAnchor),
-            sensitivityPercentLabel.widthAnchor.constraint(equalToConstant: 60)
-        ])
-    }
-    
-    @objc private func sensitivitySliderChanged(_ sender: NSSlider) {
-        let newSensitivity = Float(sender.doubleValue)
-        sensitivityPercentLabel.stringValue = "\(Int(newSensitivity))%"
-        
-        // Send AT*CONFIG commands to drone immediately
-        droneController.setSensitivity(newSensitivity)
     }
     
     @objc private func ssidFieldChanged(_ sender: NSTextField) {
@@ -583,7 +515,9 @@ class StatusWindowController: NSWindowController {
             ("Share", "Mode Hover", .systemCyan),
             ("Options", "Déconnexion", .systemIndigo),
             ("D-Pad ↑", "Caméra avant", .systemTeal),
-            ("D-Pad ↓", "Caméra bas", .systemTeal)
+            ("D-Pad ↓", "Caméra bas", .systemTeal),
+            ("D-Pad ←", "Enregistrement vidéo", .systemTeal),
+            ("D-Pad →", "Prendre photo", .systemTeal)
         ]
         
         let cardWidth: CGFloat = 290  // Increased from 280
@@ -865,10 +799,6 @@ class StatusWindowController: NSWindowController {
             controllerStatusLabel.stringValue = "🎮 Déconnectée"
             controllerStatusLabel.textColor = .systemRed
         }
-        
-        // Mise à jour de l'affichage de sensibilité
-        sensValueLabel.stringValue = "\(Int(droneController.currentSensitivity))%"
-        sensValueLabel.textColor = .systemCyan
     }
     
     private func updateWithNavData(_ navData: NavData) {
@@ -931,15 +861,6 @@ class StatusWindowController: NSWindowController {
             
             // Yaw
             self.yawValueLabel.stringValue = String(format: "%.1f°", navData.yaw)
-            
-            // GPS
-            self.gpsValueLabel.stringValue = navData.gpsNumSatellites >= 4 ? "ACTIF" : "INACTIF"
-            self.gpsValueLabel.textColor = navData.gpsNumSatellites >= 4 ? .systemGreen : .systemRed
-            
-            // Satellites
-            self.satsValueLabel.stringValue = "\(navData.gpsNumSatellites)"
-            self.satsValueLabel.textColor = navData.gpsNumSatellites >= 6 ? .systemGreen :
-                (navData.gpsNumSatellites >= 4 ? .systemYellow : .systemRed)
             
             // Moteurs (avec code couleur selon RPM)
             let motorColor: (UInt8) -> NSColor = { rpm in
